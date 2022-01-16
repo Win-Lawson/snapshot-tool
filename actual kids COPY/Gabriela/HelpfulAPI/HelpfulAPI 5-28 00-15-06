@@ -1,0 +1,37 @@
+---Returns just the name of the block in minecraft:name_of format
+function whatIs()
+    if turtle.detect() then
+        y, x = turtle.inspect()
+        return x 
+    else
+        return "nothing"
+    end
+end
+ 
+---Returns true if block in front is wood    
+function isWood()
+    x = whatIs()
+    x = string.sub(x, -3, -1)
+    if x == "log" then 
+        return true
+    else
+        return false
+    end
+end
+    
+---Returns true and selects slot of name given, otherwise returns false
+function findInventory(name)
+    for slot = 1, 16 do
+        if turtle.getItemCount(slot) ~= 0 then
+    
+            item= turtle.getItemDetail(slot)
+            item= item['name']
+            item= string.sub(item, 11, -1)
+            if name == item then
+                turtle.select(slot)
+                return true
+            end
+        print(slot)
+        end
+    end
+end
