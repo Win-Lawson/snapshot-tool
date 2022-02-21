@@ -6,7 +6,7 @@ def gen_index():
 
     result = '<title>Home</title>\n'
     result = result + open('HTML/index_structure.html').read()
-    for student in os.listdir('actual kids COPY'):
+    for student in os.listdir('input files'):
         student = student.split()[0]
         student_path = '/STEMC-snapshot-tool/navigation/students/' + student + '.html'
         result = result + open('HTML/student_row.html').read().format(student_path=student_path, student_name=student, num_syntax_error='0',
@@ -23,7 +23,7 @@ def gen_student(student):
     result = '<title>' + student + '</title>\n'
     result = result + open('HTML/student_structure.html').read()
     projects = []
-    path = '/home/nlawson3/PycharmProjects/STEMC-snapshot-tool/actual kids COPY/'
+    path = '/home/nlawson3/PycharmProjects/STEMC-snapshot-tool/input files/'
     print(glob.glob(path + student+'*')[0])
     for file in os.listdir(glob.glob(path + student+'*')[0]):
         if os.path.isdir(glob.glob(path + student+'*')[0]+'/'+file):
