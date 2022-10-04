@@ -1,3 +1,0 @@
-os.loadAPI("shapeAPI")
-
-shapeAPI.roof(12, 3, "end_stone_bricks")

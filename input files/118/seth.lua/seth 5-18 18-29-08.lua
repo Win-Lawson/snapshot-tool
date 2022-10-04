@@ -1,2 +1,0 @@
-turtle.down()
-turtle.down()

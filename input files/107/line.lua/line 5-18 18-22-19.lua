@@ -1,6 +1,0 @@
-turtle.up()
-turtle.placeDown()
-turtle.foreward()
-turtle.placeDown()
-turtle.foreward()
-turtle.placeDown()

@@ -1,2 +1,0 @@
-os.loadAPI("shape.lua")
-

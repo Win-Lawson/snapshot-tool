@@ -1,2 +1,0 @@
-turtle.turnLeft()
-turtle.turnLeft()

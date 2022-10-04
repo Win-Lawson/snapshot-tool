@@ -53,7 +53,8 @@ def copy_file(file, target_dir):
 def get_folder_list():
     def parse(line):
         if line[0] == 'd':
-            result = ((line.rpartition(':')[2])[3:])
+            # result = ((line.rpartition(':')[2])[3:])
+            result = line.split()[-1]
             folder_list.append(result)
 
     folder_list = []
@@ -64,7 +65,8 @@ def get_folder_list():
 def get_file_list():
     def parse(line):
         if line[0] != 'd':
-            result = ((line.rpartition(':')[2])[3:])
+            # result = ((line.rpartition(':')[2])[3:])
+            result = line.split()[-1]
             file_list.append(result)
 
     file_list = []
@@ -91,12 +93,12 @@ def copy_dir(dir_from, dir_to):
 
 
 def generate_index_of_names():
-    path = '../../Desktop/Snapshot tool/CC Snapshots'
+    path = 'CC Snapshots'
     dirs = []
     for file in os.listdir(path):
         if os.path.isdir(path + '/' + file):
             dirs.append(file)
-    index = open('../../Desktop/Snapshot tool/CC Snapshots/index of names.txt', 'w')
+    index = open('CC Snapshots/index of names.txt', 'w')
     index_text = ''
     for dir in dirs:
         for file in os.listdir(path + '/' + dir):
@@ -144,5 +146,4 @@ def run():
 
 
 run()
-
 print('Done!')
