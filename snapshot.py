@@ -1,149 +1,155 @@
+"""
+STEM+C Snapshot Tool V2. This tool take snapshots of student code on the active server and stores
+iterations locally on a user specified directory. This script is designed to run continuously, but
+rerunning will not overwrite past files.
+"""
 import os
-from ftplib import FTP
+import shutil
 import datetime as dt
 import filecmp
-import time
+
 import threading as th
+import time
+
+
+def get_source_path():
+    """
+
+    :return: returns path to /computer directory on active server
+    """
+    print('List of suggested source paths:')
+    suggested_paths = []
+    for path, dir_names, filenames in os.walk(os.getcwd()):
+        if path.endswith('computer'):
+            suggested_paths.append(path)
+    for x, path in enumerate(suggested_paths):
+        print(str(x)+': ', path)
+    path_num = int(input("Input number of desired path: "))
+    return suggested_paths[path_num]
+
+
+def get_destination_path():
+    """
+
+    :return: returns path to save location for snapshots
+    """
+    result = 'CC Snapshots'
+    user_destination = input("Enter destination path or leave blank to use '/CC Snapshots'\n")
+    if not len(user_destination) == 0:
+        result = user_destination
+    return os.path.join(os.getcwd(), result)
 
 
 def newest(path):
+    """
+
+    :param path: path to a directory
+    :return: returns the newest file in supplied directory if one or more files exists
+    """
     files = os.listdir(path)
-    paths = [path + '/' + basename for basename in files]
-    return max(paths, key=os.path.getctime)
+    if len(files) != 0:
+        paths = [path + '/' + basename for basename in files]
+        return max(paths, key=os.path.getctime)
+    return ""
 
 
-def copy_file(file, target_dir):
-    time_stamp = str(dt.datetime.now())[6:-7]
-    time_stamp = time_stamp.replace(':', '-')
+def tstamp_copy(src_path, dest_path, filename):
+    """Creates a snapshot of a single file, using a new filename so that previous iterations are
+    not overwritten
 
-    filename = file.split('.')[0]
-    extension = ''
-    if len(file.split('.')) > 1:
-        extension = file.split('.')[1]
+    :param src_path: path to file to copy
+    :param dest_path: where to copy it to
+    :param filename: just the filename of the file to copy
+    """
+    curr_latest = newest(dest_path)
+    path_latest = os.path.join(dest_path, curr_latest)
+    if not filecmp.cmp(path_latest, src_path):
+        timestamp = str(dt.datetime.now())[6:-7]
+        dest_path = os.path.join(dest_path, filename)
+        dest_path = dest_path[:-4] + ' ' + timestamp + '.lua'
+        shutil.copyfile(src_path, dest_path)
 
-    folder = target_dir + '/' + file
-    path = folder + '/' + filename + ' ' + time_stamp + '.' + extension
 
-    if 'name' in file and 'lua' not in file:
-        if not os.path.exists(target_dir + '/' + file):
-            local_file = open(target_dir + '/' + file, 'wb')
-            ftp.retrbinary('RETR ' + file, local_file.write, 1024)
-            local_file.close()
+def take_snapshot(src_path, dest_path):
+    """ Creates timestamped copies for files in source_path and recursively calls
+    on itself for subdirectories of source_path. Copied files are organized into directories
+    with names that match the source file. Appends at destination_path does not overwrite.
+    :param src_path: path to take snapshot of
+    :param dest_path: path to save snapshots to
+    :return: None
+    """
+    files = []
+    directories = []
+    for entry in os.listdir(src_path):
+        entry_path = os.path.join(src_path, entry)
+        if os.path.isfile(entry_path):
+            files.append(entry)
         else:
-            local_file = open(target_dir + '/' + file, 'wb')
-            ftp.retrbinary('RETR ' + file, local_file.write, 1024)
-            local_file.close()
-    else:
-        if not os.path.exists(folder):
-            os.mkdir(folder)
-            local_file = open(path, 'wb')
-            ftp.retrbinary('RETR ' + file, local_file.write, 1024)
-            local_file.close()
-        else:
-            latest = newest(folder)
-            local_file = open(path, 'wb')
-            ftp.retrbinary('RETR ' + file, local_file.write, 1024)
-            local_file.close()
-            if filecmp.cmp(path, latest):
-                os.remove(path)
-            else:
-                print(file + ' was updated.')
-
-
-def get_folder_list():
-    def parse(line):
-        if line[0] == 'd':
-            # result = ((line.rpartition(':')[2])[3:])
-            result = line.split()[-1]
-            folder_list.append(result)
-
-    folder_list = []
-    ftp.dir(parse)
-    return folder_list
-
-
-def get_file_list():
-    def parse(line):
-        if line[0] != 'd':
-            # result = ((line.rpartition(':')[2])[3:])
-            result = line.split()[-1]
-            file_list.append(result)
-
-    file_list = []
-    ftp.dir(parse)
-    return file_list
-
-
-def copy_dir(dir_from, dir_to):
-    ftp.cwd(dir_from)
-    files = get_file_list()
+            directories.append(entry)
+    for directory in directories:
+        sub_src_path = os.path.join(src_path, directory)
+        sub_dest_path = os.path.join(dest_path, directory)
+        if not os.path.exists(sub_dest_path):
+            os.mkdir(sub_dest_path)
+        take_snapshot(sub_src_path, sub_dest_path)
     for file in files:
-        copy_file(file, dir_to)
-    folders = get_folder_list()
-    for folder in folders:
-        if not os.path.exists(target + '/' + folder):
-            os.mkdir(target + '/' + folder)
-            sub_dir = dir_from + '/' + folder
-            ftp.cwd(sub_dir)
-            copy_dir(sub_dir, dir_to + '/' + folder)
+        file_src_path = os.path.join(src_path, file)  # absolute path to file to copy
+        file_dest_path = os.path.join(dest_path, file)
+        if '.lua' in file:
+            if not os.path.exists(file_dest_path):
+                os.mkdir(file_dest_path)
+            tstamp_copy(file_src_path, file_dest_path, file)
         else:
-            sub_dir = dir_from + '/' + folder
-            ftp.cwd(sub_dir)
-            copy_dir(sub_dir, dir_to + '/' + folder)
+            shutil.copyfile(file_src_path, file_dest_path)
 
 
-def generate_index_of_names():
-    path = 'CC Snapshots'
-    dirs = []
-    for file in os.listdir(path):
-        if os.path.isdir(path + '/' + file):
-            dirs.append(file)
-    index = open('CC Snapshots/index of names.txt', 'w')
+def generate_name_index(dest_path):
+    """After snapshots are taken using take_snapshot() this program searches for files with
+    filenames including name where students were instructed to write their names. This generates
+    an index associating the computer numbers with the names of the students
+
+    :param dest_path: Path to snapshot directory
+    """
+    folders = []
+    for file in os.listdir(dest_path):
+        if os.path.isdir(os.path.join(dest_path, file)):
+            folders.append(file)
+    index = open(os.path.join(dest_path, 'Index of Names'), 'w')
     index_text = ''
-    for dir in dirs:
-        for file in os.listdir(path + '/' + dir):
-            if 'name' in file and 'lua' not in file:
-                text_file = open(path + '/' + dir + '/' + file, 'r')
+    for folder in folders:
+        for file in os.listdir(os.path.join(dest_path, folder)):
+            if 'name' in file.lower() and 'lua' not in file:
+                text_file = open(dest_path + '/' + folder + '/' + file, 'r')
                 name = text_file.read()
-                index_text = index_text + dir + ': ' + name + "\n"
+                index_text = index_text + folder + ': ' + name + "\n"
                 break
     index.write(index_text)
     index.close()
 
 
-# On Run
-
-# Connect to FTP
-ftp = FTP(host='69.175.109.98')
-ftp.login(user='whimc-uiuc.129962', passwd='Cr@ft!ng_188P')
-source = '/spawn/computercraft/computer'
-
-# Create Snapshot Directory if it doesnt exist
-target = 'CC Snapshots'
-if not os.path.exists(target):
-    os.mkdir(target)
-
-# Continuous Snapshots
-print("Press enter to stop taking snapshots!")
-
-keep_going = True
-
-
 def key_capture_thread():
+    """ Allows for the continuous taking of snapshots
+    """
     global keep_going
     input()
     keep_going = False
     print('Taking last snapshot')
 
 
-def run():
-    th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
-    while keep_going:
-        copy_dir(source, target)
-        print('snapshot')
-        generate_index_of_names()
-        time.sleep(60)
+source_path = get_source_path()
+destination_path = get_destination_path()
+print('Source: ' + source_path)
+print('Destination: ' + destination_path)
+print('Beginning continuous snapshots, press [ENTER] to stop')
 
+if not os.path.exists(destination_path):
+    os.makedirs(destination_path)
 
-run()
+keep_going = True
+th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
+while keep_going:
+    take_snapshot(source_path, destination_path)
+    print('Collected Snapshot')
+    time.sleep(10)
+generate_name_index(destination_path)
 print('Done!')

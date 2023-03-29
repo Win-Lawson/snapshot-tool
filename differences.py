@@ -1,26 +1,80 @@
-import datetime
 import os
-import difflib
-import filecmp
+import glob
+import csv
 import re
 import subprocess
-import csv
-import sys
 import datetime as dt
 
 
-# Methods used by difference
-def word_count(path):
+def get_source_path():
+    """
+
+    :return: returns path to snapshots directory collected from snapshot tool
+    """
+    print('Select snapshot output folder:')
+    suggested_paths = os.listdir()
+    for x, path in enumerate(suggested_paths):
+        print(str(x) + ': ', path)
+    path_num = int(input("Input number of desired path: "))
+    return suggested_paths[path_num]
+
+
+def get_destination_path(src_path):
+    """
+
+    :param src_path: source path from get_source_path()
+    :return: returns path to output location for difference tool
+    """
+    result = src_path + ' - diffs'
+    user_destination = input("Enter destination path or leave blank to use '" + result + "'\n")
+    if not len(user_destination) == 0:
+        result = user_destination
+    return os.path.join(os.getcwd(), result)
+
+
+def walk_to_level(path, depth=1):
+    """It works just like os.walk, but you can pass it a level parameter
+       that indicates how deep the recursion will go.
+       If depth is 1, the current directory is listed.
+       If depth is 0, nothing is returned.
+       If depth is -1 (or less than 0), the full depth is walked.
+    """
+    # If depth is negative, just walk
+    # Not using yield from for python2 compat
+    # and copy dirs to keep consistent behavior for depth = -1 and depth = inf
+    if depth < 0:
+        for root, dirs, files in os.walk(path):
+            yield root, dirs[:], files
+        return
+    elif depth == 0:
+        return
+
+    # path.count(os.path.sep) is safe because
+    # - On Windows "\\" is never allowed in the name of a file or directory
+    # - On UNIX "/" is never allowed in the name of a file or directory
+    # - On MacOS a literal "/" is quietly translated to a ":" so it is still
+    #   safe to count "/".
+    base_depth = path.rstrip(os.path.sep).count(os.path.sep)
+    for root, dirs, files in os.walk(path):
+        yield root, dirs[:], files
+        cur_depth = root.count(os.path.sep)
+        if base_depth + depth <= cur_depth:
+            del dirs[:]
+
+
+def get_files_by_date(path):
+    files = glob.glob(os.path.join(path, '*'))
+    files.sort(key=os.path.getmtime)
+    return files
+
+
+def get_word_count(path):
     return len(re.split('\W+', open(path).read()))
 
 
-def char_count(path):
+def get_char_count(path):
     string = open(path).read()
     return len(string) - string.count(' ')
-
-
-def delta_word_count(initial, final):
-    return word_count(final) - word_count(initial)
 
 
 def do_err_exist(file_path):
@@ -36,162 +90,60 @@ def count_key(file_path, key):
     return file.count(key)
 
 
-def time_diff(old, new):
-    try:
-        extension = new.index('.')
-        new = new[-13:-extension]
-    except ValueError:
-        new = new[-13:]
-
-    old = old[-17:-4]
-    new = new[-17:-4]
-
-    print(old)
-    print(new)
-    new_time = datetime.datetime.strptime(new, '%m-%d %H-%M-%S')
-    old_time = datetime.datetime.strptime(old, '%m-%d %H-%M-%S')
-    return (new_time - old_time).total_seconds()
-
-
-# Given two files, returns result: html diff | returns data: dictionary for insertion into csv file
-def difference(initial, final, j):
-    old_lines = open(initial).read().split('\n')
-    new_lines = open(final).read().split('\n')
-    a = difflib.HtmlDiff()
-    result = '<title>' + str(j + 1) + '</title>\n'
-    result = result + a.make_file(fromlines=old_lines, tolines=new_lines, context=False)
-    num_changed = delta_word_count(initial, final)
-    err_prev = do_err_exist(initial)
-    err_curr = do_err_exist(final)
-    result = result + open("HTML/Additional Info.html").read().format(num_changed=num_changed, err_prev=err_prev,
-                                                                      err_curr=err_curr, old=initial, new=final)
-    data = {}
-    data['error?'] = err_curr
-    data['fixed error'] = err_prev and not err_curr
-    data['words changed'] = num_changed
-    data['time spent'] = time_diff(old, new)
-    return result, data
-    final_count = len(re.split('\W+', open(final).read()))
-    initial_count = len(re.split('\W+', open(initial).read()))
+def analyze(instances):
+    for x in range(len(instances)):
+        instance = instances[x]
+        computer_id = instance.split('/')[1]
+        project_name = instance.split('/')[2]
+        iteration = x + 1
+        error_exist = do_err_exist(instance)
+        char_count = get_char_count(instance)
+        word_count = get_word_count(instance)
+        if_count = count_key(instance, 'if')
+        for_count = count_key(instance, 'for')
+        file_path = instance
+        delta_word_count = 'NA'
+        delta_char_count = 'NA'
+        fixed_error = 'NA'
+        time_spent = 'NA'
+        if x > 0:
+            previous_inst = instances[x - 1]
+            delta_word_count = word_count - get_word_count(previous_inst)
+            delta_char_count = char_count - get_char_count(previous_inst)
+            if do_err_exist(previous_inst):
+                fixed_error = not do_err_exist(instance)
+            curr_time = dt.datetime.fromtimestamp(os.path.getmtime(instance))
+            prev_time = dt.datetime.fromtimestamp(os.path.getmtime(previous_inst))
+            time_spent = curr_time - prev_time
+        data = {'computer': computer_id, 'project': project_name, 'iteration': iteration, 'error?': error_exist,
+                'fixed error': fixed_error, 'char count': char_count, 'delta char count': delta_char_count,
+                'word count': word_count, 'delta word count': delta_word_count, 'if count': if_count,
+                'for count': for_count, 'time spent': time_spent, 'file path': file_path}
+        writer.writerow(data)
 
 
-welcome_text = """
-Differences Tool: Given snapshots of code generated from snapshot.py, this script will generate a csv file with
-detailing differences between iterations. Additionally the script will create HTML Diff files between successive iterations.
-Copyright 2022 Win Lawson, UIUC STEM+C
+source_path = get_source_path()
+destination_path = get_destination_path(source_path)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
-documentation files (the "Software"), to deal in the Software without restriction, including without limitation 
-the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to 
-permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+if not os.path.exists(destination_path):
+    os.mkdir(destination_path)
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
-OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+project_paths = []
+for root, dirs, files in walk_to_level(source_path, 2):
+    if root.count('/') == 2:
+        project_paths.append(root)
 
-INSTRUCTIONS: Please add input files from snapshot.py to the directory in which this script is running. 
-Run this script with $ python3 differences.py
 
-"""
-print(welcome_text)
-input("Press Enter to continue...")
-os.system('cls||clear')
-
-while True:
-    files_index = 0
-    files = []
-    print("List of directories:")
-    for file in os.listdir():
-        if os.path.isdir(file):
-            files.append(file)
-    for file in files:
-        print(str(files_index) + ' ' + file)
-        files_index += 1
-    try:
-        selected_index = int(input("\nType number of input directory: "))
-        if not 0 <= selected_index <= files_index - 1:
-            raise ValueError
-        else:
-            input_path = files[selected_index]
-            print('\nYour selected input path is "' + input_path + '"')
-            output_path = input_path + "-output"
-            print('output files will be saved in: "' + output_path + '"')
-            cont = input('Do you want to continue? [Y/n]\n')
-            if not (cont == 'y' or cont == 'Y'):
-                raise ValueError
-            else:
-                break
-    except ValueError:
-        print("\nERROR: Invalid input or cancellation occurred, try again.\n")
-
-fields = ['student', 'project', 'iteration', 'error?', 'fixed error', 'char count', 'word count', 'words changed',
+fields = ['computer', 'project', 'iteration', 'error?', 'fixed error', 'char count', 'delta char count', 'word count',
+          'delta word count',
           'if count', 'for count',
           'time spent', 'file path']
 
-if not os.path.exists(output_path):
-    os.mkdir(output_path)
-with open(output_path + '/data.csv', 'w+') as csvfile:
+
+with open(os.path.join(destination_path, 'data.csv'), 'w+') as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=fields)
     writer.writeheader()
-    diffs_path = output_path + '/diffs'
-    students = []
-    projects = []
-    instances = []
-    for file in os.listdir(input_path):
-        if os.path.isdir(input_path + '/' + file):
-            students.append(file)
-    for student in students:
-        projects = []
-        instances = []
-        for file in os.listdir(input_path + '/' + student):
-            if os.path.isdir(input_path + '/' + student + '/' + file):
-                projects.append(file)
-        for project in projects:
-            instances = []
-            specific_diff_path = diffs_path + '/' + student + '/' + project
-            for instance in sorted(os.listdir(input_path + '/' + student + '/' + project)):
-                instances.append(instance)
-            j = 0
-            for i in range(len(instances) - 1):
-                if not os.path.isdir(specific_diff_path):
-                    os.makedirs(specific_diff_path)
-                old = input_path + '/' + student + '/' + project + '/' + instances[i]
-                new = input_path + '/' + student + '/' + project + '/' + instances[i + 1]
-                if not filecmp.cmp(old, new):
-                    file = open(specific_diff_path + '/' + str(j + 1) + '.html', 'w+')
-                    diff, data = difference(old, new, j)
-                    file.write(diff)
-                    data['student'] = student
-                    data['project'] = project
-                    data['iteration'] = j + 2
-                    data['char count'] = char_count(new)
-                    data['word count'] = word_count(new)
-                    data['if count'] = count_key(new, 'if ')
-                    data['for count'] = count_key(new, 'for ')
-                    data['file path'] = new
-                    if j == 0:
-                        temp = {}
-                        temp['student'] = student
-                        temp['project'] = project
-                        temp['iteration'] = 1
-                        temp['error?'] = do_err_exist(old)
-                        temp['fixed error'] = 'N/A'
-                        data['char count'] = char_count(old)
-                        data['word count'] = word_count(old)
-                        temp['words changed'] = 'N/A'
-                        temp['if count'] = count_key(old, 'if ')
-                        temp['for count'] = count_key(old, 'for ')
-                        temp['file path'] = old
-                        writer.writerow(temp)
-                        data['iteration'] = 2
-                        data['error?'] = do_err_exist(new)
-                        data['file path'] = new
-                    writer.writerow(data)
-                    j = j + 1
-            #if len(os.listdir(specific_diff_path)) == 0:
-               # os.rmdir(specific_diff_path)
-
-print("Completed!")
+    for project in project_paths:
+        ordered_instances = get_files_by_date(project)
+        analyze(ordered_instances)
