@@ -4,6 +4,7 @@ import csv
 import re
 import subprocess
 import datetime as dt
+import difflib
 
 
 def get_source_path():
@@ -90,9 +91,28 @@ def count_key(file_path, key):
     return file.count(key)
 
 
+def html_diff(instance_a, instance_b, data):
+    old_lines = open(instance_a).read().split('\n')
+    new_lines = open(instance_b).read().split('\n')
+    a = difflib.HtmlDiff()
+    # HTML PART
+    project_name = data['project']
+    iteration = data['iteration']
+    computer = data['computer']
+    html = '<title>' + project_name + ': v' + str(iteration - 1) + '-->v' + str(iteration) + '</title>\n'
+    html = html + a.make_file(fromlines=old_lines, tolines=new_lines, context=False)
+
+    html_dest = os.path.join(destination_path, computer, project_name)
+    os.makedirs(html_dest, exist_ok=True)
+    html_path = os.path.join(html_dest, str(iteration-1) + 'to' + str(iteration) + '.html')
+    diff = open(html_path, "w+")
+    diff.write(html)
+
+
 def analyze(instances):
     for x in range(len(instances)):
         instance = instances[x]
+        # CSV PART
         computer_id = instance.split('/')[1]
         project_name = instance.split('/')[2]
         iteration = x + 1
@@ -120,11 +140,12 @@ def analyze(instances):
                 'word count': word_count, 'delta word count': delta_word_count, 'if count': if_count,
                 'for count': for_count, 'time spent': time_spent, 'file path': file_path}
         writer.writerow(data)
+        if x > 0:
+            html_diff(instances[x-1], instances[x], data)
 
 
 source_path = get_source_path()
 destination_path = get_destination_path(source_path)
-
 
 if not os.path.exists(destination_path):
     os.mkdir(destination_path)
@@ -134,12 +155,10 @@ for root, dirs, files in walk_to_level(source_path, 2):
     if root.count('/') == 2:
         project_paths.append(root)
 
-
 fields = ['computer', 'project', 'iteration', 'error?', 'fixed error', 'char count', 'delta char count', 'word count',
           'delta word count',
           'if count', 'for count',
           'time spent', 'file path']
-
 
 with open(os.path.join(destination_path, 'data.csv'), 'w+') as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=fields)
