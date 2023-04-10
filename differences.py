@@ -1,3 +1,8 @@
+"""
+STEM+C differences tool V2. This tool creates html difference files and a csv overview based on snapshots
+collected using snapshot.py. This script is designed to be run once after work on the server has been completed. Run
+this script in the directory immediately above the directory containing snapshots
+"""
 import os
 import glob
 import csv
