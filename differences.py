@@ -34,7 +34,7 @@ def get_destination_path(src_path):
 
 
 def walk_to_level(path, depth=1):
-    """It works just like os.walk, but you can pass it a level parameter
+    """It works just like os.walk(), but you can pass it a level parameter
        that indicates how deep the recursion will go.
        If depth is 1, the current directory is listed.
        If depth is 0, nothing is returned.
@@ -79,6 +79,11 @@ def get_char_count(path):
 
 
 def do_err_exist(file_path):
+    """
+
+    :param file_path: :return: tuple with a bool that is true if an error exists, and a string with the error
+    message, '' is returned if no error
+    """
     try:
         subprocess.check_output('luac -p ' + '"' + file_path + '"', stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as e:
@@ -93,6 +98,12 @@ def count_key(file_path, key):
 
 
 def html_diff(instance_a, instance_b, data):
+    """
+    :param instance_a:
+    :param instance_b:
+    :param data:
+    :return: returns a string containing the html difference between two iterations
+    """
     old_lines = open(instance_a).read().split('\n')
     new_lines = open(instance_b).read().split('\n')
     a = difflib.HtmlDiff(wrapcolumn=64)
@@ -106,6 +117,11 @@ def html_diff(instance_a, instance_b, data):
 
 
 def analyze(instances):
+    """
+    Creates csv and html files detailing the differences between iterations of the same project
+    returns nothing as outputs are directly written to files in the directory of the script
+    :param instances: list of paths to instances of the same project ordered by creation time
+    """
     for x in range(len(instances)):
         instance = instances[x]
         # CSV PART
