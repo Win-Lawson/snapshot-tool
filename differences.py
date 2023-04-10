@@ -81,9 +81,10 @@ def get_char_count(path):
 def do_err_exist(file_path):
     try:
         subprocess.check_output('luac -p ' + '"' + file_path + '"', stderr=subprocess.STDOUT, shell=True)
-    except Exception:
-        return True
-    return False
+    except subprocess.CalledProcessError as e:
+        error = 'line ' + str(e.output).split(':', 2)[-1]
+        return True, error
+    return False, ''
 
 
 def count_key(file_path, key):
@@ -111,7 +112,7 @@ def analyze(instances):
         computer_id = instance.split('/')[1]
         project_name = instance.split('/')[2]
         iteration = x + 1
-        error_exist = do_err_exist(instance)
+        error_exist, output = do_err_exist(instance)
         char_count = get_char_count(instance)
         word_count = get_word_count(instance)
         if_count = count_key(instance, 'if')
@@ -125,20 +126,21 @@ def analyze(instances):
             previous_inst = instances[x - 1]
             delta_word_count = word_count - get_word_count(previous_inst)
             delta_char_count = char_count - get_char_count(previous_inst)
-            if do_err_exist(previous_inst):
-                fixed_error = not do_err_exist(instance)
+            if do_err_exist(previous_inst)[0]:
+                fixed_error = not do_err_exist(instance)[0]
             curr_time = dt.datetime.fromtimestamp(os.path.getmtime(instance))
             prev_time = dt.datetime.fromtimestamp(os.path.getmtime(previous_inst))
             time_spent = curr_time - prev_time
         data = {'computer': computer_id, 'project': project_name, 'iteration': iteration, 'error?': error_exist,
                 'fixed error': fixed_error, 'char count': char_count, 'delta char count': delta_char_count,
                 'word count': word_count, 'delta word count': delta_word_count, 'if count': if_count,
-                'for count': for_count, 'time spent': time_spent, 'file path': file_path}
+                'for count': for_count, 'time spent': time_spent, 'error message': output, 'file path': file_path}
         writer.writerow(data)
         html_diff_txt = '<title>' + computer_id + '/' + project_name + '-diffs' + '</title>\n'
         if x > 0:
-            html_diff_txt += '<h3>v'+str(x-1) + '-->v' + str(x) + '\n</h3>'
+            html_diff_txt += '<h3>v' + str(x - 1) + '-->v' + str(x) + '\n</h3>'
             html_diff_txt += html_diff(instances[x - 1], instances[x], data)
+            html_diff_txt += '<h3>' + output + '</h3>'
             html_diff_txt += '<h6>&nbsp</h6>'
 
         html_dest = os.path.join(destination_path, computer_id)
@@ -162,7 +164,7 @@ for root, dirs, files in walk_to_level(source_path, 2):
 fields = ['computer', 'project', 'iteration', 'error?', 'fixed error', 'char count', 'delta char count', 'word count',
           'delta word count',
           'if count', 'for count',
-          'time spent', 'file path']
+          'time spent', 'error message', 'file path']
 
 with open(os.path.join(destination_path, 'data.csv'), 'w+') as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=fields)
