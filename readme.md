@@ -6,8 +6,11 @@ Currently, snapshot.py pulls code files from ComputerCraft directory on the acti
 differences.py operates on the data collected with snapshot.py. It generates an overview csv file with characteristics of each iteration of student work. Additionally, differences.py generates a html file for each project that highlights differences between iterations.
 
 ---
+## Prerequisites
+Download any version of Python 3 at https://www.python.org/downloads/
+
 ## Using snapshot.py
-Place snapshot.py in your root Forge (ComputerCraft) directory and run it via CLI with python (or pyhton3) snapshot.py
+Place snapshot.py in your root Forge (ComputerCraft) directory and run it via CLI (command line interface) with python (or pyhton3) snapshot.py
 
 To stop the program just hit enter, results will be available as a folder of iterations in the defined directory.
 
