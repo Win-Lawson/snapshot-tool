@@ -94,19 +94,14 @@ def count_key(file_path, key):
 def html_diff(instance_a, instance_b, data):
     old_lines = open(instance_a).read().split('\n')
     new_lines = open(instance_b).read().split('\n')
-    a = difflib.HtmlDiff()
+    a = difflib.HtmlDiff(wrapcolumn=64)
     # HTML PART
     project_name = data['project']
     iteration = data['iteration']
     computer = data['computer']
-    html = '<title>' + project_name + ': v' + str(iteration - 1) + '-->v' + str(iteration) + '</title>\n'
-    html = html + a.make_file(fromlines=old_lines, tolines=new_lines, context=False)
+    html = a.make_file(fromlines=old_lines, tolines=new_lines, context=False)
 
-    html_dest = os.path.join(destination_path, computer, project_name)
-    os.makedirs(html_dest, exist_ok=True)
-    html_path = os.path.join(html_dest, str(iteration-1) + 'to' + str(iteration) + '.html')
-    diff = open(html_path, "w+")
-    diff.write(html)
+    return html
 
 
 def analyze(instances):
@@ -140,8 +135,17 @@ def analyze(instances):
                 'word count': word_count, 'delta word count': delta_word_count, 'if count': if_count,
                 'for count': for_count, 'time spent': time_spent, 'file path': file_path}
         writer.writerow(data)
+        html_diff_txt = '<title>' + computer_id + '/' + project_name + '-diffs' + '</title>\n'
         if x > 0:
-            html_diff(instances[x-1], instances[x], data)
+            html_diff_txt += '<h3>v'+str(x-1) + '-->v' + str(x) + '\n</h3>'
+            html_diff_txt += html_diff(instances[x - 1], instances[x], data)
+            html_diff_txt += '<h6>&nbsp</h6>'
+
+        html_dest = os.path.join(destination_path, computer_id, project_name)
+        os.makedirs(html_dest, exist_ok=True)
+        html_path = os.path.join(html_dest, project_name + '-diff' + '.html')
+        diff = open(html_path, "a+")
+        diff.write(html_diff_txt)
 
 
 source_path = get_source_path()
