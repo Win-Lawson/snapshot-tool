@@ -141,7 +141,7 @@ def analyze(instances):
             html_diff_txt += html_diff(instances[x - 1], instances[x], data)
             html_diff_txt += '<h6>&nbsp</h6>'
 
-        html_dest = os.path.join(destination_path, computer_id, project_name)
+        html_dest = os.path.join(destination_path, computer_id)
         os.makedirs(html_dest, exist_ok=True)
         html_path = os.path.join(html_dest, project_name + '-diff' + '.html')
         diff = open(html_path, "a+")
